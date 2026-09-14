@@ -1,0 +1,21 @@
+# Build Outputs
+*.jar
+*.war
+*.ear
+build/
+dist/
+target/
+
+# Node & Angular
+node_modules/
+.angular/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.DS_Store
+Thumbs.db
+
+# OpenCourier Local Bootstrapping Data
+.opencourier/
