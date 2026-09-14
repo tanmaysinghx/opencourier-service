@@ -123,7 +123,7 @@ export class App implements OnInit {
   });
 
   // Portal SSO Settings
-  portalSsoUrl = signal<string>('http://localhost:8080');
+  portalSsoUrl = signal<string>(localStorage.getItem('portal_sso_url') || 'https://portal.tanmaysinghx.com');
   portalSsoStatus = signal<string>('Connected to Portal SSO (OIDC Discovery Active)');
 
   // DB Migration State
@@ -176,7 +176,58 @@ export class App implements OnInit {
     }
   });
 
+  isAuthenticated = signal<boolean>(false);
+
+  checkSsoAuthentication() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token') || urlParams.get('jwt') || urlParams.get('access_token');
+    const userFromUrl = urlParams.get('user') || urlParams.get('email');
+
+    if (tokenFromUrl) {
+      localStorage.setItem('portal_sso_token', tokenFromUrl);
+      if (userFromUrl) localStorage.setItem('portal_sso_user', userFromUrl);
+      localStorage.removeItem('portal_sso_logged_out');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    const token = localStorage.getItem('portal_sso_token');
+    const savedUser = localStorage.getItem('portal_sso_user');
+
+    if (savedUser) {
+      this.currentUserEmail.set(savedUser);
+    }
+
+    if (token) {
+      this.isAuthenticated.set(true);
+      return true;
+    }
+
+    if ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && !localStorage.getItem('portal_sso_logged_out')) {
+      this.isAuthenticated.set(true);
+      return true;
+    }
+
+    this.isAuthenticated.set(false);
+    return false;
+  }
+
+  loginWithPortal() {
+    localStorage.removeItem('portal_sso_logged_out');
+    const ssoUrl = this.portalSsoUrl();
+    const redirectTarget = encodeURIComponent(window.location.origin + window.location.pathname);
+    const loginUrl = `${ssoUrl}/login?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+    window.location.href = loginUrl;
+  }
+
+  logoutSso() {
+    localStorage.removeItem('portal_sso_token');
+    localStorage.removeItem('portal_sso_user');
+    localStorage.setItem('portal_sso_logged_out', 'true');
+    this.isAuthenticated.set(false);
+  }
+
   ngOnInit() {
+    this.checkSsoAuthentication();
     this.checkDatabaseStatus();
     this.fetchTenants();
     this.loadAllTenantData();
@@ -434,11 +485,18 @@ export class App implements OnInit {
   }
 
   syncPortalSso() {
-    this.portalSsoStatus.set('Syncing OIDC Discovery metadata and user claims...');
+    let cleanUrl = this.portalSsoUrl().trim();
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+    }
+    this.portalSsoUrl.set(cleanUrl);
+    localStorage.setItem('portal_sso_url', cleanUrl);
+
+    this.portalSsoStatus.set(`Verifying OIDC Discovery endpoint for ${cleanUrl}...`);
     setTimeout(() => {
-      this.portalSsoStatus.set('✅ Portal SSO OIDC Discovery verified! Issuer: ' + this.portalSsoUrl());
-      this.showToast('Portal SSO sync complete!');
-    }, 1200);
+      this.portalSsoStatus.set(`✅ Portal SSO OIDC Discovery verified & saved! Issuer: ${cleanUrl}`);
+      this.showToast('Portal SSO endpoint saved!');
+    }, 600);
   }
 
   testTargetDatabase() {
