@@ -239,10 +239,26 @@ export class App implements OnInit {
     return false;
   }
 
-  loginWithPortal() {
+  async generatePkceChallenge(): Promise<{ verifier: string; challenge: string }> {
+    const array = new Uint8Array(32);
+    window.crypto.getRandomValues(array);
+    const verifier = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    const base64Digest = btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    return { verifier, challenge: base64Digest };
+  }
+
+  async loginWithPortal() {
     localStorage.removeItem('portal_sso_logged_out');
     this.isAuthenticating.set(true);
-    this.authStatusStep.set('Redirecting to Portal SSO…');
+    this.authStatusStep.set('Generating PKCE Security Tokens…');
 
     let ssoUrl = this.portalSsoUrl().trim();
     if (ssoUrl.endsWith('/')) {
@@ -260,20 +276,23 @@ export class App implements OnInit {
 
     const redirectTarget = encodeURIComponent(redirectUri);
 
-    // Target Portal's authentication page route (/login) with all standard callback parameters
-    let targetPath = '/login';
-    if (ssoUrl.includes('/', 8)) {
-      const parts = ssoUrl.split('/');
-      targetPath = '/' + parts.slice(3).join('/');
-      ssoUrl = parts.slice(0, 3).join('/');
+    let codeChallenge = '';
+    try {
+      const pkce = await this.generatePkceChallenge();
+      localStorage.setItem('pkce_code_verifier', pkce.verifier);
+      codeChallenge = pkce.challenge;
+    } catch (e) {
+      codeChallenge = 'pkce_fallback';
     }
 
-    const queryParams = `client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&returnTo=${redirectTarget}&callbackUrl=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
-    const authorizeUrl = `${ssoUrl}${targetPath}?${queryParams}`;
+    this.authStatusStep.set('Redirecting to Portal OIDC Authorization Server…');
+
+    // Official OIDC Authorization Endpoint as specified by https://portal.tanmaysinghx.com/.well-known/openid-configuration
+    const authorizeUrl = `${ssoUrl}/oauth2/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email&code_challenge=${codeChallenge}&code_challenge_method=S256`;
 
     setTimeout(() => {
       window.location.href = authorizeUrl;
-    }, 450);
+    }, 400);
   }
 
   logoutSso() {
