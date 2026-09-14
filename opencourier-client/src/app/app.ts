@@ -259,14 +259,17 @@ export class App implements OnInit {
     }
 
     const redirectTarget = encodeURIComponent(redirectUri);
-    
-    // Spring Authorization Server & OIDC Standard Endpoint: /oauth2/authorize
-    let authorizeUrl = `${ssoUrl}/oauth2/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
-    
-    // If a full custom path was entered in Portal SSO settings, use it directly
+
+    // Target Portal's authentication page route (/login) with all standard callback parameters
+    let targetPath = '/login';
     if (ssoUrl.includes('/', 8)) {
-      authorizeUrl = `${ssoUrl}?client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+      const parts = ssoUrl.split('/');
+      targetPath = '/' + parts.slice(3).join('/');
+      ssoUrl = parts.slice(0, 3).join('/');
     }
+
+    const queryParams = `client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&returnTo=${redirectTarget}&callbackUrl=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+    const authorizeUrl = `${ssoUrl}${targetPath}?${queryParams}`;
 
     setTimeout(() => {
       window.location.href = authorizeUrl;
