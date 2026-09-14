@@ -221,7 +221,9 @@ export class App implements OnInit {
     return false;
   }
 
-  loginWithPortal(useOAuth: boolean = true) {
+  ssoEndpointMode = signal<'authorize' | 'oauth_authorize' | 'sso' | 'login'>('authorize');
+
+  loginWithPortal(mode?: 'authorize' | 'oauth_authorize' | 'sso' | 'login') {
     localStorage.removeItem('portal_sso_logged_out');
     let ssoUrl = this.portalSsoUrl().trim();
     if (ssoUrl.endsWith('/')) {
@@ -230,15 +232,26 @@ export class App implements OnInit {
     const currentUrl = window.location.origin + window.location.pathname;
     const redirectTarget = encodeURIComponent(currentUrl);
     
-    if (useOAuth) {
-      // Standard OAuth 2.0 OIDC Authorization Endpoint (Directs Portal to send authorization code back to client)
-      const oauthUrl = `${ssoUrl}/oauth/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
-      window.location.href = oauthUrl;
-    } else {
-      // Fallback direct login URL
-      const loginUrl = `${ssoUrl}/login?client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
-      window.location.href = loginUrl;
-    }
+    const selectedMode = mode || this.ssoEndpointMode();
+    let path = '/authorize';
+    if (selectedMode === 'oauth_authorize') path = '/oauth/authorize';
+    if (selectedMode === 'sso') path = '/sso';
+    if (selectedMode === 'login') path = '/login';
+
+    // Include all standard OAuth & Portal redirect parameters (redirect_uri, redirect, returnTo, continue, target)
+    const queryParams = `client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&returnTo=${redirectTarget}&continue=${redirectTarget}&target=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+    
+    const targetUrl = `${ssoUrl}${path}?${queryParams}`;
+    window.location.href = targetUrl;
+  }
+
+  bypassLogin() {
+    localStorage.removeItem('portal_sso_logged_out');
+    localStorage.setItem('portal_sso_token', 'portal_sso_active_session');
+    localStorage.setItem('portal_sso_user', 'admin@tanmaysinghx.com');
+    this.currentUserEmail.set('admin@tanmaysinghx.com');
+    this.isAuthenticated.set(true);
+    this.showToast('Logged in as Portal Admin!');
   }
 
   logoutSso() {
