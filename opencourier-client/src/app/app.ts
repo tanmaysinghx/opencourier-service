@@ -56,6 +56,7 @@ export class App implements OnInit {
   private http = inject(HttpClient);
 
   // Portal SSO Exact Layout State
+  isDarkMode = signal<boolean>(false);
   sidebarOpen = signal<boolean>(false);
   activeRoute = signal<'dashboard' | 'templates' | 'monitor' | 'providers' | 'logs' | 'dlq' | 'settings'>('dashboard');
   selectedTenant = signal<string>('tenant_default');
@@ -238,6 +239,15 @@ export class App implements OnInit {
         this.speedGauge.set(2200 + Math.floor(Math.random() * 500));
       }
     }, 2500);
+  }
+
+  toggleTheme() {
+    this.isDarkMode.update(d => !d);
+    if (this.isDarkMode()) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
   }
 
   toggleSidebar() {
