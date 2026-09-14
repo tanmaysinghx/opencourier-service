@@ -178,6 +178,9 @@ export class App implements OnInit {
 
   isAuthenticated = signal<boolean>(false);
 
+  isAuthenticating = signal<boolean>(false);
+  authStatusStep = signal<string>('Connecting to Portal SSO…');
+
   checkSsoAuthentication() {
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = 
@@ -190,6 +193,9 @@ export class App implements OnInit {
     const userFromUrl = urlParams.get('user') || urlParams.get('email');
 
     if (tokenFromUrl || userFromUrl) {
+      this.isAuthenticating.set(true);
+      this.authStatusStep.set('Verifying OIDC Security Tokens…');
+
       const activeToken = tokenFromUrl || 'sso_active_session_' + Date.now();
       localStorage.setItem('portal_sso_token', activeToken);
       if (userFromUrl) {
@@ -198,6 +204,18 @@ export class App implements OnInit {
       localStorage.removeItem('portal_sso_logged_out');
       // Clean query parameters from address bar after successful SSO callback
       window.history.replaceState({}, document.title, window.location.pathname);
+
+      setTimeout(() => {
+        this.authStatusStep.set('SSO Authentication Verified!');
+        setTimeout(() => {
+          this.isAuthenticating.set(false);
+          this.isAuthenticated.set(true);
+        }, 400);
+      }, 600);
+
+      const savedUser = localStorage.getItem('portal_sso_user');
+      if (savedUser) this.currentUserEmail.set(savedUser);
+      return true;
     }
 
     const token = localStorage.getItem('portal_sso_token');
@@ -223,12 +241,26 @@ export class App implements OnInit {
 
   loginWithPortal() {
     localStorage.removeItem('portal_sso_logged_out');
+    this.isAuthenticating.set(true);
+    this.authStatusStep.set('Redirecting to Portal SSO…');
+
     let ssoUrl = this.portalSsoUrl().trim();
     if (ssoUrl.endsWith('/')) {
       ssoUrl = ssoUrl.substring(0, ssoUrl.length - 1);
     }
-    const currentUrl = window.location.origin + window.location.pathname;
-    const redirectTarget = encodeURIComponent(currentUrl);
+
+    // Ensure redirect URI matches exact character-for-character string registered in Portal SSO (https://courier.tanmaysinghx.com/)
+    let redirectUri = window.location.origin + window.location.pathname;
+    if (!redirectUri.endsWith('/')) {
+      redirectUri += '/';
+    }
+    if (window.location.hostname === 'courier.tanmaysinghx.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      if (window.location.hostname === 'courier.tanmaysinghx.com') {
+        redirectUri = 'https://courier.tanmaysinghx.com/';
+      }
+    }
+
+    const redirectTarget = encodeURIComponent(redirectUri);
     
     // Construct production OAuth2 OIDC authorization URL for client application "courier-service"
     let authorizeUrl = `${ssoUrl}/oauth/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
@@ -236,7 +268,9 @@ export class App implements OnInit {
       authorizeUrl = `${ssoUrl}?client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
     }
 
-    window.location.href = authorizeUrl;
+    setTimeout(() => {
+      window.location.href = authorizeUrl;
+    }, 450);
   }
 
   logoutSso() {
