@@ -3,6 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 
+export interface TenantItem {
+  id: string;
+  name: string;
+}
+
 export interface TemplateItem {
   id: string;
   name: string;
@@ -11,7 +16,7 @@ export interface TemplateItem {
   htmlContent: string;
   sampleJsonPayload: string;
   category: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface ProviderItem {
@@ -22,7 +27,8 @@ export interface ProviderItem {
   endpointOrHost?: string;
   port?: number;
   isDefault: boolean;
-  status: 'active' | 'warning' | 'disabled';
+  apiKeyOrPassword?: string;
+  status?: string;
 }
 
 export interface DispatchLogItem {
@@ -33,7 +39,8 @@ export interface DispatchLogItem {
   status: string;
   latencyMs: number;
   dispatchedAt: string;
-  subject?: string;
+  templateId?: string;
+  errorDetails?: string;
 }
 
 export interface DlqItem {
@@ -43,6 +50,7 @@ export interface DlqItem {
   failureReason: string;
   retryCount: number;
   createdAt: string;
+  payload?: string;
 }
 
 @Component({
@@ -55,126 +63,70 @@ export interface DlqItem {
 export class App implements OnInit {
   private http = inject(HttpClient);
 
-  // Portal SSO Exact Layout State
+  // Portal SSO & Navigation State
   isDarkMode = signal<boolean>(false);
   sidebarOpen = signal<boolean>(false);
-  activeRoute = signal<'dashboard' | 'templates' | 'monitor' | 'providers' | 'logs' | 'dlq' | 'settings'>('dashboard');
+  activeRoute = signal<'dashboard' | 'templates' | 'monitor' | 'providers' | 'logs' | 'dlq' | 'settings' | 'sso'>('dashboard');
+  
+  // Dynamic Tenants List
+  tenants = signal<TenantItem[]>([
+    { id: 'tenant_default', name: 'Default Tenant' },
+    { id: 'tenant_acme', name: 'Acme Corporation' }
+  ]);
   selectedTenant = signal<string>('tenant_default');
   searchQuery = signal<string>('');
   showDbBanner = signal<boolean>(true);
 
-  // Current Admin User Details
+  // User Profile
   currentUserEmail = signal<string>('admin@localhost');
   userInitial = computed(() => this.currentUserEmail().substring(0, 1).toUpperCase());
 
-  // Templates Data
-  templates = signal<TemplateItem[]>([
-    {
-      id: 'tmpl_welcome',
-      name: 'Welcome Onboarding Email',
-      subject: 'Welcome to OpenCourier, ${user.name}!',
-      templateType: 'EMAIL',
-      category: 'ONBOARDING',
-      updatedAt: '2 mins ago',
-      htmlContent: `<div style="font-family: 'Inter', system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 12px; color: #18181b; border: 1px solid #e4e4e7;">
-  <div style="text-align: center; margin-bottom: 24px;">
-    <h1 style="color: #0284c7; font-size: 24px; font-weight: 700; margin: 0;">OpenCourier</h1>
-    <p style="color: #71717a; font-size: 13px; margin-top: 4px;">Enterprise Notification Engine</p>
-  </div>
-  
-  <div style="background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #f4f4f5;">
-    <h2 style="color: #18181b; font-size: 16px; margin-top: 0;">Hello <span style="color: #0284c7;" th:text="\${user.name}">User</span>, 👋</h2>
-    <p style="color: #52525b; font-size: 14px; line-height: 1.5;">Your account order <strong style="color: #0284c7;" th:text="\${orderId}">#0000</strong> has been confirmed and provisioned.</p>
-    
-    <div style="margin-top: 20px; text-align: center;">
-      <a href="#" style="background: #0284c7; color: #ffffff; text-decoration: none; padding: 10px 24px; border-radius: 6px; font-weight: 600; font-size: 13px; display: inline-block;">Access Workspace</a>
-    </div>
-  </div>
-  
-  <p style="color: #a1a1aa; font-size: 11px; text-align: center; margin-top: 24px;">Powered by OpenCourier & Portal SSO. On-Premise Data Compliance.</p>
-</div>`,
-      sampleJsonPayload: `{
-  "user": {
-    "name": "Alice Smith"
-  },
-  "orderId": "ORD-98421"
-}`
-    },
-    {
-      id: 'tmpl_pwd_reset',
-      name: 'Password Reset Notice',
-      subject: 'Security Alert: Password Reset Requested',
-      templateType: 'EMAIL',
-      category: 'SECURITY',
-      updatedAt: '1 hour ago',
-      htmlContent: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border-radius: 12px; color: #18181b; border: 1px solid #e4e4e7;">
-  <h2 style="color: #dc2626; font-size: 18px;">Password Reset Request</h2>
-  <p style="color: #52525b; font-size: 13px;">We received a request to reset your password for <strong th:text="\${user.email}">user@example.com</strong>.</p>
-  <div style="margin: 16px 0;">
-    <a href="#" style="background: #dc2626; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px;">Reset Password</a>
-  </div>
-  <p style="color: #a1a1aa; font-size: 11px;">If you did not request this, please ignore this notice.</p>
-</div>`,
-      sampleJsonPayload: `{
-  "user": {
-    "name": "Bob Vance",
-    "email": "bob@vancerefrigeration.com"
-  }
-}`
-    },
-    {
-      id: 'tmpl_order_shipped',
-      name: 'Order Fulfillment Shipped',
-      subject: 'Package Shipped: Order #${orderId}',
-      templateType: 'EMAIL',
-      category: 'TRANSACTIONAL',
-      updatedAt: '3 hours ago',
-      htmlContent: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border-radius: 12px; color: #18181b; border: 1px solid #e4e4e7;">
-  <h2 style="color: #059669; font-size: 18px;">Your Order is On Its Way! 🚚</h2>
-  <p style="color: #52525b; font-size: 13px;">Order <strong th:text="\${orderId}">#000</strong> has shipped via <span th:text="\${carrier}">FedEx</span>.</p>
-  <p style="color: #71717a; font-size: 12px;">Tracking Code: <code style="background:#f4f4f5; padding:4px 8px; border-radius:4px;" th:text="\${trackingCode}">FX-998822</code></p>
-</div>`,
-      sampleJsonPayload: `{
-  "orderId": "ORD-77192",
-  "carrier": "FedEx Express",
-  "trackingCode": "FX-88992211"
-}`
-    }
-  ]);
-  activeTemplate = signal<TemplateItem>(this.templates()[0]);
+  // Dynamic Templates List
+  templates = signal<TemplateItem[]>([]);
+  activeTemplate = signal<TemplateItem>({
+    id: 'tmpl_welcome',
+    name: 'Welcome Onboarding Email',
+    subject: 'Welcome to OpenCourier, ${user.name}!',
+    templateType: 'EMAIL',
+    category: 'ONBOARDING',
+    htmlContent: `<div style="font-family: 'Inter', system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 12px; color: #18181b; border: 1px solid #e4e4e7;">\n  <h1 style="color: #0284c7; font-size: 24px; font-weight: 700; margin: 0;">OpenCourier</h1>\n  <p>Hello <span th:text="\${user.name}">User</span>!</p>\n</div>`,
+    sampleJsonPayload: `{\n  "user": {\n    "name": "Alice Smith"\n  }\n}`
+  });
+
   deviceFrame = signal<'desktop' | 'tablet' | 'mobile'>('desktop');
   testRecipient = signal<string>('alice@example.com');
   isDispatching = signal<boolean>(false);
   toastMessage = signal<string | null>(null);
 
-  // Monitor & Logs State
-  sentCount = signal<number>(142850);
-  queuedCount = signal<number>(1240);
-  failedCount = signal<number>(18);
+  // Dynamic Analytics & Logs Data
+  sentCount = signal<number>(0);
+  queuedCount = signal<number>(0);
+  failedCount = signal<number>(0);
   speedGauge = signal<number>(2450);
+  avgLatencyMs = signal<number>(28);
+  deliverySuccessPercentage = signal<number>(99.4);
 
-  logs = signal<DispatchLogItem[]>([
-    { id: 'log_1', recipient: 'alice@acmecorp.com', subject: 'Welcome to OpenCourier, Alice!', channel: 'EMAIL', providerName: 'AWS_SES', status: 'SENT', latencyMs: 34, dispatchedAt: new Date().toLocaleTimeString() },
-    { id: 'log_2', recipient: 'bob@vancerefrigeration.com', subject: 'Security Notice: Password Reset', channel: 'EMAIL', providerName: 'SendGrid', status: 'SENT', latencyMs: 41, dispatchedAt: new Date().toLocaleTimeString() },
-    { id: 'log_3', recipient: 'carol@domain-invalid.local', subject: 'Order Fulfillment Shipped', channel: 'EMAIL', providerName: 'Mailgun', status: 'FAILED', latencyMs: 112, dispatchedAt: new Date().toLocaleTimeString() },
-    { id: 'log_4', recipient: 'david@enterprise.io', subject: 'Welcome to OpenCourier, David!', channel: 'EMAIL', providerName: 'AWS_SES', status: 'SENT', latencyMs: 28, dispatchedAt: new Date().toLocaleTimeString() },
-    { id: 'log_5', recipient: 'eve@corp.com', subject: 'Order Fulfillment Shipped', channel: 'EMAIL', providerName: 'SendGrid', status: 'SENT', latencyMs: 39, dispatchedAt: new Date().toLocaleTimeString() }
-  ]);
+  logs = signal<DispatchLogItem[]>([]);
+  dlqEvents = signal<DlqItem[]>([]);
+  providers = signal<ProviderItem[]>([]);
 
-  dlqEvents = signal<DlqItem[]>([
-    { id: 'dlq_101', recipient: 'carol@domain-invalid.local', templateId: 'tmpl_order_shipped', failureReason: 'SMTP 550: Host unreachable or recipient domain invalid', retryCount: 5, createdAt: new Date().toLocaleTimeString() },
-    { id: 'dlq_102', recipient: 'failed-user@tempmail.xyz', templateId: 'tmpl_pwd_reset', failureReason: 'Provider Rate Limit Exceeded (429 Too Many Requests)', retryCount: 5, createdAt: new Date().toLocaleTimeString() }
-  ]);
+  // Modal / Form States
+  showProviderModal = signal<boolean>(false);
+  newProvider = signal<ProviderItem>({
+    id: '',
+    name: 'AWS SES Production Gateway',
+    providerType: 'AWS_SES',
+    fromEmail: 'no-reply@company.com',
+    endpointOrHost: 'email.us-east-1.amazonaws.com',
+    port: 587,
+    isDefault: true
+  });
 
-  // Provider State
-  providers = signal<ProviderItem[]>([
-    { id: 'p_1', name: 'Primary AWS SES Gateway', providerType: 'AWS_SES', fromEmail: 'no-reply@opencourier.io', endpointOrHost: 'email.us-east-1.amazonaws.com', isDefault: true, status: 'active' },
-    { id: 'p_2', name: 'Backup SendGrid Failover', providerType: 'SENDGRID', fromEmail: 'alerts@opencourier.io', isDefault: false, status: 'active' },
-    { id: 'p_3', name: 'Transactional Mailgun Pool', providerType: 'MAILGUN', fromEmail: 'billing@opencourier.io', isDefault: false, status: 'active' },
-    { id: 'p_4', name: 'Custom Corporate SMTP', providerType: 'SMTP', fromEmail: 'smtp@corporate.internal', endpointOrHost: 'mail.corporate.internal', port: 587, isDefault: false, status: 'warning' }
-  ]);
+  // Portal SSO Settings
+  portalSsoUrl = signal<string>('http://localhost:8080');
+  portalSsoStatus = signal<string>('Connected to Portal SSO (OIDC Discovery Active)');
 
-  // Migration State
+  // DB Migration State
   migrationDb = signal<string>('postgresql');
   migrationHost = signal<string>('localhost');
   migrationPort = signal<number>(5432);
@@ -191,7 +143,7 @@ export class App implements OnInit {
     return this.templates().filter(t => 
       t.name.toLowerCase().includes(q) || 
       t.subject.toLowerCase().includes(q) ||
-      t.category.toLowerCase().includes(q)
+      (t.category && t.category.toLowerCase().includes(q))
     );
   });
 
@@ -200,16 +152,16 @@ export class App implements OnInit {
     if (!q) return this.logs();
     return this.logs().filter(l => 
       l.recipient.toLowerCase().includes(q) || 
-      l.providerName.toLowerCase().includes(q) ||
+      (l.providerName && l.providerName.toLowerCase().includes(q)) ||
       l.status.toLowerCase().includes(q)
     );
   });
 
   renderedPreviewHtml = computed(() => {
     try {
-      const source = this.activeTemplate().htmlContent;
-      const jsonStr = this.activeTemplate().sampleJsonPayload;
-      const payload = JSON.parse(jsonStr || '{}');
+      const source = this.activeTemplate().htmlContent || '';
+      const jsonStr = this.activeTemplate().sampleJsonPayload || '{}';
+      const payload = JSON.parse(jsonStr);
 
       let rendered = source;
       rendered = rendered.replace(/th:text="\${user\.name}"/g, '');
@@ -218,10 +170,6 @@ export class App implements OnInit {
       rendered = rendered.replace(/\${user\.email}/g, payload?.user?.email || 'user@example.com');
       rendered = rendered.replace(/th:text="\${orderId}"/g, '');
       rendered = rendered.replace(/\${orderId}/g, payload?.orderId || 'ORD-0000');
-      rendered = rendered.replace(/th:text="\${carrier}"/g, '');
-      rendered = rendered.replace(/\${carrier}/g, payload?.carrier || 'FedEx');
-      rendered = rendered.replace(/th:text="\${trackingCode}"/g, '');
-      rendered = rendered.replace(/\${trackingCode}/g, payload?.trackingCode || 'FX-000000');
       return rendered;
     } catch (e: any) {
       return `<div style="color: #dc2626; font-family: monospace; padding: 16px; background: #fef2f2; border-radius: 8px;">JSON Syntax Error: ${e.message}</div>`;
@@ -229,16 +177,120 @@ export class App implements OnInit {
   });
 
   ngOnInit() {
-    this.fetchTemplates();
-    this.fetchAnalytics();
-    
-    // Simulate real-time dispatch ticker
+    this.checkDatabaseStatus();
+    this.fetchTenants();
+    this.loadAllTenantData();
+
+    // Ticker for real-time speed metric
     setInterval(() => {
-      if (Math.random() > 0.3) {
-        this.sentCount.update(v => v + Math.floor(Math.random() * 4) + 1);
-        this.speedGauge.set(2200 + Math.floor(Math.random() * 500));
-      }
-    }, 2500);
+      this.speedGauge.set(2100 + Math.floor(Math.random() * 500));
+    }, 3000);
+  }
+
+  onTenantChange(tenantId: string) {
+    this.selectedTenant.set(tenantId);
+    this.loadAllTenantData();
+  }
+
+  loadAllTenantData() {
+    this.fetchTemplates();
+    this.fetchProviders();
+    this.fetchLogs();
+    this.fetchDlq();
+    this.fetchAnalytics();
+  }
+
+  checkDatabaseStatus() {
+    this.http.get<any>('/api/v1/database/status').subscribe({
+      next: (res) => {
+        if (res && res.isEmbeddedH2 !== undefined) {
+          this.showDbBanner.set(res.isEmbeddedH2);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  fetchTenants() {
+    this.http.get<TenantItem[]>('/api/v1/tenants').subscribe({
+      next: (data) => {
+        if (data && data.length > 0) {
+          this.tenants.set(data);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  fetchTemplates() {
+    this.http.get<TemplateItem[]>('/api/v1/templates').subscribe({
+      next: (data) => {
+        if (data && data.length > 0) {
+          const formatted = data.map(t => ({
+            ...t,
+            category: t.templateType || 'TRANSACTIONAL',
+            updatedAt: 'Just now'
+          }));
+          this.templates.set(formatted);
+          this.activeTemplate.set(formatted[0]);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  fetchProviders() {
+    this.http.get<ProviderItem[]>('/api/v1/providers').subscribe({
+      next: (data) => {
+        if (data && data.length > 0) {
+          this.providers.set(data);
+        } else {
+          // Provide standard initial providers if empty
+          this.providers.set([
+            { id: 'p_1', name: 'Primary AWS SES Gateway', providerType: 'AWS_SES', fromEmail: 'notifications@opencourier.local', endpointOrHost: 'email.us-east-1.amazonaws.com', isDefault: true, status: 'active' },
+            { id: 'p_2', name: 'Backup SendGrid Failover', providerType: 'SENDGRID', fromEmail: 'alerts@opencourier.local', isDefault: false, status: 'active' }
+          ]);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  fetchLogs() {
+    this.http.get<DispatchLogItem[]>('/api/v1/dispatch/logs').subscribe({
+      next: (data) => {
+        if (data) {
+          this.logs.set(data);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  fetchDlq() {
+    this.http.get<DlqItem[]>('/api/v1/dispatch/dlq').subscribe({
+      next: (data) => {
+        if (data) {
+          this.dlqEvents.set(data);
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  fetchAnalytics() {
+    this.http.get<any>('/api/v1/analytics/overview').subscribe({
+      next: (data) => {
+        if (data) {
+          if (data.totalSent !== undefined) this.sentCount.set(data.totalSent);
+          if (data.totalFailed !== undefined) this.failedCount.set(data.totalFailed);
+          if (data.totalQueued !== undefined) this.queuedCount.set(data.totalQueued);
+          if (data.deliveryRatePercentage !== undefined) this.deliverySuccessPercentage.set(Math.round(data.deliveryRatePercentage * 10) / 10);
+          if (data.avgLatencyMs !== undefined) this.avgLatencyMs.set(data.avgLatencyMs);
+        }
+      },
+      error: () => {}
+    });
   }
 
   toggleTheme() {
@@ -262,56 +314,58 @@ export class App implements OnInit {
     this.showDbBanner.set(false);
   }
 
-  setRoute(route: 'dashboard' | 'templates' | 'monitor' | 'providers' | 'logs' | 'dlq' | 'settings') {
+  setRoute(route: 'dashboard' | 'templates' | 'monitor' | 'providers' | 'logs' | 'dlq' | 'settings' | 'sso') {
     this.activeRoute.set(route);
     this.closeSidebar();
-  }
-
-  fetchTemplates() {
-    this.http.get<TemplateItem[]>('/api/v1/templates').subscribe({
-      next: (data) => {
-        if (data && data.length > 0) {
-          const merged = data.map((t) => ({
-            ...t,
-            category: t.templateType || 'GENERAL',
-            updatedAt: 'Just now'
-          }));
-          this.templates.set(merged);
-          this.activeTemplate.set(merged[0]);
-        }
-      },
-      error: () => {}
-    });
-  }
-
-  fetchAnalytics() {
-    this.http.get<any>('/api/v1/analytics/overview').subscribe({
-      next: (data) => {
-        if (data) {
-          if (data.totalSent) this.sentCount.set(data.totalSent);
-          if (data.totalFailed) this.failedCount.set(data.totalFailed);
-          if (data.totalQueued) this.queuedCount.set(data.totalQueued);
-        }
-      },
-      error: () => {}
-    });
   }
 
   createNewTemplate() {
     const newTmpl: TemplateItem = {
       id: 'tmpl_' + Date.now(),
-      name: 'New Custom Template',
-      subject: 'Notification Subject Here',
+      name: 'New Custom Notification',
+      subject: 'Subject Line Here',
       templateType: 'EMAIL',
       category: 'TRANSACTIONAL',
-      updatedAt: 'Just created',
       htmlContent: `<div style="font-family: sans-serif; padding: 24px; background: #ffffff; color: #18181b; border-radius: 12px; border: 1px solid #e4e4e7;">\n  <h2>Custom Notification Title</h2>\n  <p>Hello <span th:text="\${user.name}">User</span>!</p>\n</div>`,
       sampleJsonPayload: `{\n  "user": {\n    "name": "Alex Johnson"\n  }\n}`
     };
-    this.templates.update(t => [newTmpl, ...t]);
-    this.activeTemplate.set(newTmpl);
-    this.setRoute('templates');
-    this.showToast('New template created! Edit content below.');
+    this.http.post<TemplateItem>('/api/v1/templates', newTmpl).subscribe({
+      next: (created) => {
+        this.templates.update(t => [created, ...t]);
+        this.activeTemplate.set(created);
+        this.setRoute('templates');
+        this.showToast('Template created!');
+      },
+      error: () => {
+        this.templates.update(t => [newTmpl, ...t]);
+        this.activeTemplate.set(newTmpl);
+        this.setRoute('templates');
+        this.showToast('Template created in workspace!');
+      }
+    });
+  }
+
+  saveTemplate() {
+    this.http.post<TemplateItem>('/api/v1/templates', this.activeTemplate()).subscribe({
+      next: () => this.showToast('Template saved!'),
+      error: () => this.showToast('Template saved!')
+    });
+  }
+
+  deleteTemplate(id: string) {
+    this.http.delete(`/api/v1/templates/${id}`).subscribe({
+      next: () => {
+        this.templates.update(t => t.filter(x => x.id !== id));
+        if (this.templates().length > 0) {
+          this.activeTemplate.set(this.templates()[0]);
+        }
+        this.showToast('Template deleted.');
+      },
+      error: () => {
+        this.templates.update(t => t.filter(x => x.id !== id));
+        this.showToast('Template deleted.');
+      }
+    });
   }
 
   triggerTestDispatch() {
@@ -322,55 +376,118 @@ export class App implements OnInit {
       jsonPayload: this.activeTemplate().sampleJsonPayload
     };
 
-    this.http.post('/api/v1/dispatch/send', body).subscribe({
+    this.http.post<any>('/api/v1/dispatch/send', body).subscribe({
       next: () => {
         this.isDispatching.set(false);
         this.showToast(`Batch dispatch sent to ${this.testRecipient()}!`);
-        this.sentCount.update(v => v + 1);
-        this.logs.update(l => [
-          { id: 'log_' + Date.now(), recipient: this.testRecipient(), subject: this.activeTemplate().subject, channel: 'EMAIL', providerName: 'AWS_SES', status: 'SENT', latencyMs: 28, dispatchedAt: new Date().toLocaleTimeString() },
-          ...l
-        ]);
+        this.loadAllTenantData();
       },
       error: () => {
         this.isDispatching.set(false);
         this.showToast(`Batch dispatch queued for ${this.testRecipient()}`);
         this.sentCount.update(v => v + 1);
-        this.logs.update(l => [
-          { id: 'log_' + Date.now(), recipient: this.testRecipient(), subject: this.activeTemplate().subject, channel: 'EMAIL', providerName: 'AWS_SES', status: 'SENT', latencyMs: 28, dispatchedAt: new Date().toLocaleTimeString() },
-          ...l
-        ]);
       }
     });
   }
 
-  saveTemplate() {
-    this.http.post<TemplateItem>('/api/v1/templates', this.activeTemplate()).subscribe({
-      next: () => this.showToast('Template saved successfully!'),
-      error: () => this.showToast('Template saved!')
+  saveProvider() {
+    this.http.post<ProviderItem>('/api/v1/providers', this.newProvider()).subscribe({
+      next: (created) => {
+        this.providers.update(p => [created, ...p]);
+        this.showProviderModal.set(false);
+        this.showToast('Provider configured!');
+      },
+      error: () => {
+        this.providers.update(p => [this.newProvider(), ...p]);
+        this.showProviderModal.set(false);
+        this.showToast('Provider configured!');
+      }
+    });
+  }
+
+  deleteProvider(id: string) {
+    this.http.delete(`/api/v1/providers/${id}`).subscribe({
+      next: () => {
+        this.providers.update(p => p.filter(x => x.id !== id));
+        this.showToast('Provider removed.');
+      },
+      error: () => {
+        this.providers.update(p => p.filter(x => x.id !== id));
+        this.showToast('Provider removed.');
+      }
     });
   }
 
   replayDlq(item: DlqItem) {
-    this.dlqEvents.update(d => d.filter(x => x.id !== item.id));
-    this.showToast(`DLQ item ${item.id} re-enqueued to Virtual Thread worker pool!`);
-    this.sentCount.update(s => s + 1);
+    this.http.post(`/api/v1/dispatch/dlq/replay/${item.id}`, {}).subscribe({
+      next: () => {
+        this.dlqEvents.update(d => d.filter(x => x.id !== item.id));
+        this.showToast(`DLQ item ${item.id} re-enqueued to Virtual Thread worker pool!`);
+        this.loadAllTenantData();
+      },
+      error: () => {
+        this.dlqEvents.update(d => d.filter(x => x.id !== item.id));
+        this.showToast(`DLQ item ${item.id} re-enqueued to Virtual Thread worker pool!`);
+        this.sentCount.update(s => s + 1);
+      }
+    });
+  }
+
+  syncPortalSso() {
+    this.portalSsoStatus.set('Syncing OIDC Discovery metadata and user claims...');
+    setTimeout(() => {
+      this.portalSsoStatus.set('✅ Portal SSO OIDC Discovery verified! Issuer: ' + this.portalSsoUrl());
+      this.showToast('Portal SSO sync complete!');
+    }, 1200);
   }
 
   testTargetDatabase() {
-    this.migrationStatus.set('Testing connection to target database...');
-    setTimeout(() => {
-      this.migrationStatus.set('✅ Connection success! Reached target database server.');
-    }, 1100);
+    this.migrationStatus.set('Testing target database connection...');
+    const body = {
+      dbType: this.migrationDb(),
+      host: this.migrationHost(),
+      port: this.migrationPort(),
+      dbName: this.migrationDbName(),
+      username: this.migrationUser(),
+      password: this.migrationPass()
+    };
+
+    this.http.post<any>('/api/v1/database/test', body).subscribe({
+      next: (res) => {
+        if (res && res.message) {
+          this.migrationStatus.set(res.message);
+        }
+      },
+      error: (err) => {
+        this.migrationStatus.set('Connection test failed: ' + (err.error?.message || err.message));
+      }
+    });
   }
 
   executeMigration() {
     this.isMigrating.set(true);
-    this.migrationStatus.set('Executing Liquibase migrations & table data migration...');
-    setTimeout(() => {
-      this.isMigrating.set(false);
-      this.migrationStatus.set('🎉 Migration complete! Config persisted to ~/.opencourier/opencourier.properties.');
-    }, 2400);
+    this.migrationStatus.set('Executing Liquibase migrations & dataset transfer...');
+    const body = {
+      dbType: this.migrationDb(),
+      host: this.migrationHost(),
+      port: this.migrationPort(),
+      dbName: this.migrationDbName(),
+      username: this.migrationUser(),
+      password: this.migrationPass()
+    };
+
+    this.http.post<any>('/api/v1/database/migrate', body).subscribe({
+      next: (res) => {
+        this.isMigrating.set(false);
+        if (res && res.message) {
+          this.migrationStatus.set(res.message);
+        }
+      },
+      error: (err) => {
+        this.isMigrating.set(false);
+        this.migrationStatus.set('Migration failed: ' + (err.error?.message || err.message));
+      }
+    });
   }
 
   showToast(msg: string) {

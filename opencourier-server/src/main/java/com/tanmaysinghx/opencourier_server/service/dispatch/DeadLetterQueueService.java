@@ -37,4 +37,8 @@ public class DeadLetterQueueService {
 	public void deleteDlqEvent(String id) {
 		dlqEventRepository.deleteById(id);
 	}
+
+	public DlqEvent getEventById(String id) {
+		return dlqEventRepository.findById(id).orElse(null);
+	}
 }

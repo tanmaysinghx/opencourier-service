@@ -61,4 +61,20 @@ public class DispatchController {
 		String tenantId = TenantContextHolder.getTenantId();
 		return ResponseEntity.ok(dlqService.getEventsForTenant(tenantId));
 	}
+
+	@PostMapping("/dlq/replay/{id}")
+	public ResponseEntity<Map<String, Object>> replayDlqEvent(@PathVariable String id) {
+		DlqEvent event = dlqService.getEventById(id);
+		if (event != null) {
+			dispatchService.dispatchBatch(
+				event.getTenantId(), 
+				event.getTemplateId(), 
+				List.of(event.getRecipient()), 
+				event.getPayload()
+			);
+			dlqService.deleteDlqEvent(id);
+			return ResponseEntity.ok(Map.of("message", "DLQ event replayed successfully", "id", id));
+		}
+		return ResponseEntity.notFound().build();
+	}
 }
