@@ -72,7 +72,7 @@ tasks.register('npmBuild', Exec) {
 tasks.register('copyAngularResources', Copy) {
 	dependsOn 'npmBuild'
 	from "${project.projectDir}/../opencourier-client/dist/opencourier-client/browser"
-	into "${layout.buildDirectory.dir('resources/main/static')}"
+	into layout.buildDirectory.dir("resources/main/static")
 }
 
 processResources.dependsOn 'copyAngularResources'
