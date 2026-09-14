@@ -1,0 +1,45 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opencourier-app
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=postgres
+      - DB_URL=jdbc:postgresql://db:5432/opencourier
+      - DB_USERNAME=opencourier
+      - DB_PASSWORD=${DB_PASSWORD:-SecretPassword123}
+      - PORTAL_SSO_URL=${PORTAL_SSO_URL:-http://portal-sso:8080}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    container_name: opencourier-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: opencourier
+      POSTGRES_USER: opencourier
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-SecretPassword123}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opencourier -d opencourier"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: opencourier-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:

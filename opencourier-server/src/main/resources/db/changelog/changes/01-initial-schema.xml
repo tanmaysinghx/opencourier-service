@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="01-create-tenants-table" author="opencourier">
+        <createTable tableName="tenants">
+            <column name="id" type="VARCHAR(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="02-create-templates-table" author="opencourier">
+        <createTable tableName="notification_templates">
+            <column name="id" type="VARCHAR(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="subject" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="template_type" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="html_content" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sample_json_payload" type="CLOB"/>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="03-create-provider-configs-table" author="opencourier">
+        <createTable tableName="provider_configs">
+            <column name="id" type="VARCHAR(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="provider_type" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="api_key_or_password" type="VARCHAR(500)"/>
+            <column name="endpoint_or_host" type="VARCHAR(255)"/>
+            <column name="port" type="INT"/>
+            <column name="from_email" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_default" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="04-create-dispatch-logs-table" author="opencourier">
+        <createTable tableName="dispatch_logs">
+            <column name="id" type="VARCHAR(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="template_id" type="VARCHAR(64)"/>
+            <column name="recipient" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="channel" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="provider_name" type="VARCHAR(64)"/>
+            <column name="status" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="latency_ms" type="BIGINT"/>
+            <column name="error_details" type="CLOB"/>
+            <column name="dispatched_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="05-create-dlq-events-table" author="opencourier">
+        <createTable tableName="dlq_events">
+            <column name="id" type="VARCHAR(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="template_id" type="VARCHAR(64)"/>
+            <column name="recipient" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payload" type="CLOB"/>
+            <column name="retry_count" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="failure_reason" type="CLOB"/>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="06-seed-default-data" author="opencourier">
+        <insert tableName="tenants">
+            <column name="id" value="tenant_default"/>
+            <column name="name" value="Default Tenant"/>
+            <column name="created_at" valueDate="2026-09-14T00:00:00"/>
+        </insert>
+
+        <insert tableName="notification_templates">
+            <column name="id" value="tmpl_welcome"/>
+            <column name="tenant_id" value="tenant_default"/>
+            <column name="name" value="Welcome Onboarding Email"/>
+            <column name="subject" value="Welcome to OpenCourier, ${user.name}!"/>
+            <column name="template_type" value="EMAIL"/>
+            <column name="html_content" value="&lt;div style=&quot;font-family: sans-serif; padding: 20px;&quot;&gt;&lt;h2 style=&quot;color: #3b82f6;&quot;&gt;Welcome aboard, &lt;span th:text=&quot;${user.name}&quot;&gt;User&lt;/span&gt;!&lt;/h2&gt;&lt;p&gt;Your account has been created for order &lt;strong th:text=&quot;${orderId}&quot;&gt;#0000&lt;/strong&gt;.&lt;/p&gt;&lt;/div&gt;"/>
+            <column name="sample_json_payload" value="{ &quot;user&quot;: { &quot;name&quot;: &quot;Alice Smith&quot; }, &quot;orderId&quot;: &quot;ORD-98421&quot; }"/>
+            <column name="created_at" valueDate="2026-09-14T00:00:00"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,75 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.tanmaysinghx'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+bootJar {
+	archiveFileName = 'opencourier.jar'
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// Spring Boot Starters
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-liquibase'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.session:spring-session-jdbc'
+
+	// Databases
+	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'org.postgresql:postgresql'
+	runtimeOnly 'com.mysql:mysql-connector-j'
+
+	// Lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	// Testing
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'org.testcontainers:junit-jupiter'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+// Task to build Angular frontend via npm
+tasks.register('npmBuild', Exec) {
+	workingDir "${project.projectDir}/../opencourier-client"
+	if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+		commandLine 'cmd', '/c', 'npm run build'
+	} else {
+		commandLine 'npm', 'run', 'build'
+	}
+}
+
+// Task to copy built Angular resources into bootJar classpath
+tasks.register('copyAngularResources', Copy) {
+	dependsOn 'npmBuild'
+	from "${project.projectDir}/../opencourier-client/dist/opencourier-client/browser"
+	into "${buildDir}/resources/main/static"
+}
+
+processResources.dependsOn 'copyAngularResources'
