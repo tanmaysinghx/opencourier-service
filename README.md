@@ -71,7 +71,7 @@ Zero configuration required. Starts on H2 with an in-memory queue:
 
 ```bash
 # 1. Download the latest runnable executable
-curl -LO https://github.com/tanmaysinghx/opencourier/releases/latest/download/opencourier.jar
+curl -LO https://github.com/tanmaysinghx/opencourier-service/releases/latest/download/opencourier.jar
 
 # 2. Run on port 8081 (pointing to your Portal SSO server)
 java -jar opencourier.jar --httpPort=8081 --portalSsoUrl=http://localhost:8080
