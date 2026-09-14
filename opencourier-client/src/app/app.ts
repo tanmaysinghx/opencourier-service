@@ -180,13 +180,23 @@ export class App implements OnInit {
 
   checkSsoAuthentication() {
     const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token') || urlParams.get('jwt') || urlParams.get('access_token');
+    const tokenFromUrl = 
+      urlParams.get('code') || 
+      urlParams.get('token') || 
+      urlParams.get('jwt') || 
+      urlParams.get('access_token') || 
+      urlParams.get('id_token');
+      
     const userFromUrl = urlParams.get('user') || urlParams.get('email');
 
-    if (tokenFromUrl) {
-      localStorage.setItem('portal_sso_token', tokenFromUrl);
-      if (userFromUrl) localStorage.setItem('portal_sso_user', userFromUrl);
+    if (tokenFromUrl || userFromUrl) {
+      const activeToken = tokenFromUrl || 'sso_active_session_' + Date.now();
+      localStorage.setItem('portal_sso_token', activeToken);
+      if (userFromUrl) {
+        localStorage.setItem('portal_sso_user', userFromUrl);
+      }
       localStorage.removeItem('portal_sso_logged_out');
+      // Clean query parameters from address bar after successful SSO callback
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
@@ -211,12 +221,24 @@ export class App implements OnInit {
     return false;
   }
 
-  loginWithPortal() {
+  loginWithPortal(useOAuth: boolean = true) {
     localStorage.removeItem('portal_sso_logged_out');
-    const ssoUrl = this.portalSsoUrl();
-    const redirectTarget = encodeURIComponent(window.location.origin + window.location.pathname);
-    const loginUrl = `${ssoUrl}/login?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
-    window.location.href = loginUrl;
+    let ssoUrl = this.portalSsoUrl().trim();
+    if (ssoUrl.endsWith('/')) {
+      ssoUrl = ssoUrl.substring(0, ssoUrl.length - 1);
+    }
+    const currentUrl = window.location.origin + window.location.pathname;
+    const redirectTarget = encodeURIComponent(currentUrl);
+    
+    if (useOAuth) {
+      // Standard OAuth 2.0 OIDC Authorization Endpoint (Directs Portal to send authorization code back to client)
+      const oauthUrl = `${ssoUrl}/oauth/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+      window.location.href = oauthUrl;
+    } else {
+      // Fallback direct login URL
+      const loginUrl = `${ssoUrl}/login?client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+      window.location.href = loginUrl;
+    }
   }
 
   logoutSso() {
