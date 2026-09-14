@@ -36,6 +36,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.session:spring-session-jdbc'
 
+	// Jackson JSON
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
 	// Databases
 	runtimeOnly 'com.h2database:h2'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -69,7 +72,7 @@ tasks.register('npmBuild', Exec) {
 tasks.register('copyAngularResources', Copy) {
 	dependsOn 'npmBuild'
 	from "${project.projectDir}/../opencourier-client/dist/opencourier-client/browser"
-	into "${buildDir}/resources/main/static"
+	into "${layout.buildDirectory.dir('resources/main/static')}"
 }
 
 processResources.dependsOn 'copyAngularResources'
