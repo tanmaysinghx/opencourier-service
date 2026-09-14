@@ -254,17 +254,17 @@ export class App implements OnInit {
     if (!redirectUri.endsWith('/')) {
       redirectUri += '/';
     }
-    if (window.location.hostname === 'courier.tanmaysinghx.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      if (window.location.hostname === 'courier.tanmaysinghx.com') {
-        redirectUri = 'https://courier.tanmaysinghx.com/';
-      }
+    if (window.location.hostname === 'courier.tanmaysinghx.com') {
+      redirectUri = 'https://courier.tanmaysinghx.com/';
     }
 
     const redirectTarget = encodeURIComponent(redirectUri);
     
-    // Construct production OAuth2 OIDC authorization URL for client application "courier-service"
-    let authorizeUrl = `${ssoUrl}/oauth/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
-    if (ssoUrl.includes('/login') || ssoUrl.includes('/oauth')) {
+    // Spring Authorization Server & OIDC Standard Endpoint: /oauth2/authorize
+    let authorizeUrl = `${ssoUrl}/oauth2/authorize?client_id=courier-service&redirect_uri=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
+    
+    // If a full custom path was entered in Portal SSO settings, use it directly
+    if (ssoUrl.includes('/', 8)) {
       authorizeUrl = `${ssoUrl}?client_id=courier-service&redirect_uri=${redirectTarget}&redirect=${redirectTarget}&response_type=code&scope=openid%20profile%20email`;
     }
 
